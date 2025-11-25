@@ -105,6 +105,34 @@ pub fn direct_ml_available() -> bool {
     }
 }
 
+#[cfg(not(windows))]
+pub fn cuda_available() -> bool {
+    // Check if nvidia-smi is available (indicates NVIDIA drivers are installed)
+    use std::process::Command;
+    if Command::new("nvidia-smi")
+        .arg("--query-gpu=name")
+        .arg("--format=csv,noheader")
+        .output()
+        .is_ok_and(|output| output.status.success())
+    {
+        return true;
+    }
+    
+    // Also check for common CUDA library paths
+    let cuda_paths = [
+        "/usr/local/cuda/lib64/libcudart.so",
+        "/usr/lib/x86_64-linux-gnu/libcudart.so",
+        "/opt/cuda/lib64/libcudart.so",
+    ];
+    
+    cuda_paths.iter().any(|path| std::path::Path::new(path).exists())
+}
+
+#[cfg(windows)]
+pub fn cuda_available() -> bool {
+    false // CUDA on Windows would use DirectML instead
+}
+
 /// Log information about available GPU devices
 pub fn log_available_gpus() {
     #[cfg(windows)]
@@ -115,7 +143,11 @@ pub fn log_available_gpus() {
     }
 
     #[cfg(not(windows))]
-    info!("GPU acceleration not available on this platform - only CPU inference will be supported");
+    if cuda_available() {
+        info!("CUDA is available for GPU inference");
+    } else {
+        info!("CUDA is not available - only CPU inference will be supported");
+    }
 
     // Log available GPU devices
     match system_info::gpu_info(true) {

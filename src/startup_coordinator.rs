@@ -74,7 +74,9 @@ fn startup_worker_thread(
                 }
                 #[cfg(not(windows))]
                 {
-                    ExecutionProvider::CPU
+                    ExecutionProvider::CUDA(
+                        detector_config.object_detection_onnx_config.gpu_index as usize,
+                    )
                 }
             };
 

@@ -1,3 +1,5 @@
+#[cfg(not(windows))]
+use crate::cuda_available;
 #[cfg(windows)]
 use crate::direct_ml_available;
 use crate::{
@@ -11,6 +13,8 @@ use crate::{
 use anyhow::{anyhow, bail};
 use bytes::Bytes;
 use ndarray::{Array, ArrayView, Axis, s};
+#[cfg(not(windows))]
+use ort::execution_providers::CUDAExecutionProvider;
 #[cfg(windows)]
 use ort::execution_providers::DirectMLExecutionProvider;
 use ort::{
@@ -961,19 +965,35 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
 
         #[cfg(not(windows))]
         {
-            let num_intra_threads = onnx_config
-                .intra_threads
-                .min(num_cpus::get_physical() - 1)
-                .min(16);
-            let num_inter_threads = onnx_config
-                .inter_threads
-                .min(num_cpus::get_physical() - 1)
-                .min(16);
-            warn!(
-                "GPU acceleration not available on this platform, using CPU for inference with {} intra and {} inter threads",
-                num_intra_threads, num_inter_threads
-            );
-            (num_intra_threads, num_inter_threads)
+            if cuda_available() {
+                info!(
+                    gpu_index = onnx_config.gpu_index,
+                    "CUDA available, attempting to use CUDA for inference"
+                );
+
+                // Try to initialize CUDA provider, but handle any errors
+                let provider = CUDAExecutionProvider::default()
+                    .with_device_id(onnx_config.gpu_index)
+                    .build();
+                providers.push(provider);
+                device_type = DeviceType::GPU;
+                info!("CUDA initialization successful");
+                (1, 1) // For GPU we just hardcode to 1 thread
+            } else {
+                let num_intra_threads = onnx_config
+                    .intra_threads
+                    .min(num_cpus::get_physical() - 1)
+                    .min(16);
+                let num_inter_threads = onnx_config
+                    .inter_threads
+                    .min(num_cpus::get_physical() - 1)
+                    .min(16);
+                warn!(
+                    "CUDA not available, falling back to CPU for inference with {} intra and {} inter threads",
+                    num_intra_threads, num_inter_threads
+                );
+                (num_intra_threads, num_inter_threads)
+            }
         }
     };
 
@@ -1018,6 +1038,8 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
     let endpoint_provider = match device_type {
         #[cfg(windows)]
         DeviceType::GPU => EndpointProvider::DirectML,
+        #[cfg(not(windows))]
+        DeviceType::GPU => EndpointProvider::CUDA,
         _ => EndpointProvider::CPU,
     };
     Ok((
@@ -1035,6 +1057,8 @@ pub enum EndpointProvider {
     CPU,
     #[cfg(windows)]
     DirectML,
+    #[cfg(not(windows))]
+    CUDA,
 }
 
 impl std::fmt::Display for EndpointProvider {
@@ -1043,6 +1067,8 @@ impl std::fmt::Display for EndpointProvider {
             EndpointProvider::CPU => write!(f, "CPU"),
             #[cfg(windows)]
             EndpointProvider::DirectML => write!(f, "DirectML"),
+            #[cfg(not(windows))]
+            EndpointProvider::CUDA => write!(f, "CUDA"),
         }
     }
 }
@@ -1068,4 +1094,6 @@ pub enum ExecutionProvider {
     CPU,
     #[cfg(windows)]
     DirectML(usize), // GPU index
+    #[cfg(not(windows))]
+    CUDA(usize), // GPU index
 }

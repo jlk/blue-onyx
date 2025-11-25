@@ -22,7 +22,7 @@ Current features:
 | CPU Inference                               | 🟢             | 🟢          |
 | AMD GPU Inference                           | 🟢             | ❌          |
 | Intel GPU Inference                         | 🟢             | ❌          |
-| Nvidia GPU Inference                        | 🟢             | ❌          |
+| Nvidia GPU Inference                        | 🟢             | 🟢          |
 | Coral TPU Inference                         | ❌             | ❌          |
 
 
@@ -122,6 +122,38 @@ blue_onyx --log_level Debug
 ## Notes on Linux
 
 If you run outside of docker you need to install OpenSSL 3
+
+### NVIDIA GPU Support on Linux
+
+Blue Onyx supports NVIDIA GPU acceleration on Linux using CUDA. To use GPU acceleration:
+
+1. **Install NVIDIA drivers and CUDA**: Ensure you have NVIDIA drivers and the CUDA toolkit installed. For detailed steps, see the [official NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/). You can verify your installation by running:
+   ```bash
+   nvidia-smi
+   ```
+
+2. **Build with CUDA support**: The project automatically includes CUDA support when building on Linux. Make sure you have the CUDA libraries available in your system.
+
+3. **Run Blue Onyx**: The service will automatically detect and use CUDA if available:
+   ```bash
+   blue_onyx
+   ```
+4. **Run with GPU support in a container**: If you have the NVIDIA container runtime library installed, blue_onyx will run with GPU support in a container using a command such as:
+  ```
+  docker run --rm --runtime=nvidia --gpus all -p 32168:32168 jlkinsel/blue_onyx:2025112501`
+  ```
+
+5. **Force CPU if needed**: If you want to force CPU usage despite having CUDA available:
+   ```bash
+   blue_onyx --force_cpu
+   ```
+
+6. **Select specific GPU**: Use the `--gpu_index` option to select a specific GPU (default is 0):
+   ```bash
+   blue_onyx --gpu_index 1
+   ```
+
+The service will log whether CUDA is available and which GPU is being used during startup.
 
 ## Performance Testing
 

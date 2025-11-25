@@ -878,6 +878,8 @@ impl Metrics {
             ExecutionProvider::CPU => "CPU".to_string(),
             #[cfg(windows)]
             ExecutionProvider::DirectML(index) => format!("DirectML(GPU {index})"),
+            #[cfg(not(windows))]
+            ExecutionProvider::CUDA(index) => format!("CUDA(GPU {index})"),
         };
     }
 }

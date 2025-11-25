@@ -49,8 +49,43 @@ pub fn cpu_info() -> anyhow::Result<()> {
 }
 
 #[cfg(not(windows))]
-pub fn gpu_info(_log_info: bool) -> anyhow::Result<Vec<String>> {
-    Ok(vec![]) // TODO: Do something for Linux
+pub fn gpu_info(log_info: bool) -> anyhow::Result<Vec<String>> {
+    use std::process::Command;
+    
+    // Try to get GPU info from nvidia-smi
+    let output = match Command::new("nvidia-smi")
+        .arg("--query-gpu=name")
+        .arg("--format=csv,noheader")
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => {
+            if log_info {
+                info!("No NVIDIA GPUs detected (nvidia-smi not available or no GPUs found)");
+            }
+            return Ok(vec![]);
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut gpu_names: Vec<String> = stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    gpu_names.sort();
+    
+    if log_info {
+        for device_name in &gpu_names {
+            info!("GPU: {}", device_name);
+        }
+        if gpu_names.is_empty() {
+            info!("No NVIDIA GPUs detected");
+        }
+    }
+
+    Ok(gpu_names)
 }
 
 #[cfg(windows)]

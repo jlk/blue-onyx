@@ -17,3 +17,4 @@ Cargo.lock
 onnx*
 /target
 /book/book/
+*.code-workspace
