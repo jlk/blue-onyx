@@ -274,6 +274,13 @@ fn build_onnx(target_dir: &str) {
     } else if cfg!(target_os = "macos") {
         // Enable Core ML on macOS
         build_commands.push("--use_coreml".to_string());
+    } else if cfg!(target_os = "linux") {
+        // Enable CUDA on Linux
+        build_commands.extend([
+            "--use_cuda".to_string(),
+            "--cuda_home=/usr/local/cuda".to_string(),
+            "--cudnn_home=/usr/local/cuda".to_string(),
+        ]);
     }
 
     build_warning!("Running ONNX Runtime build script");

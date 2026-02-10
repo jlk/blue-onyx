@@ -285,6 +285,14 @@ async fn v1_vision_detection(
             {
                 let mut metrics = server_state.metrics.lock().await;
                 metrics.update_metrics(&vision_response);
+
+                // Periodically update GPU metrics (every 10 requests)
+                // jlk: every request
+                if metrics.number_of_requests % 1 == 0 {
+                    if let Some(gpu_idx) = metrics.gpu_index {
+                        metrics.update_gpu_metrics(gpu_idx as usize);
+                    }
+                }
             }
 
             Ok(Json(vision_response))
@@ -795,6 +803,11 @@ pub struct Metrics {
     total_analysis_round_trip_ms: u128,
     min_analysis_round_trip_ms: i32,
     max_analysis_round_trip_ms: i32,
+    gpu_utilization_percent: Option<f32>,
+    gpu_memory_used_mb: Option<u64>,
+    gpu_memory_total_mb: Option<u64>,
+    gpu_verified_active: bool,
+    gpu_index: Option<i32>,
 }
 
 impl Metrics {
@@ -815,6 +828,11 @@ impl Metrics {
             total_analysis_round_trip_ms: 0,
             min_analysis_round_trip_ms: i32::MAX,
             max_analysis_round_trip_ms: i32::MIN,
+            gpu_utilization_percent: None,
+            gpu_memory_used_mb: None,
+            gpu_memory_total_mb: None,
+            gpu_verified_active: false,
+            gpu_index: None,
         }
     }
 
@@ -874,13 +892,41 @@ impl Metrics {
     }
     pub fn update_detector_info(&mut self, detector_info: &DetectorInfo) {
         self.model_name = detector_info.model_name.clone();
-        self.execution_provider_name = match &detector_info.execution_provider {
-            ExecutionProvider::CPU => "CPU".to_string(),
+        let (provider_name, gpu_idx) = match &detector_info.execution_provider {
+            ExecutionProvider::CPU => ("CPU".to_string(), None),
             #[cfg(windows)]
             ExecutionProvider::DirectML(index) => format!("DirectML(GPU {index})"),
             #[cfg(not(windows))]
-            ExecutionProvider::CUDA(index) => format!("CUDA(GPU {index})"),
+            ExecutionProvider::CUDA(index) => (format!("CUDA(GPU {index})"), Some(*index as i32)),
         };
+        self.execution_provider_name = provider_name;
+        self.gpu_index = gpu_idx;
+
+        // Update GPU metrics if GPU is being used
+        if let Some(idx) = gpu_idx {
+            self.update_gpu_metrics(idx as usize);
+        }
+    }
+
+    /// Update GPU metrics by querying the system
+    pub fn update_gpu_metrics(&mut self, gpu_index: usize) {
+        let metrics = crate::system_info::get_gpu_metrics(gpu_index);
+        self.gpu_utilization_percent = metrics.utilization_percent;
+        self.gpu_memory_used_mb = metrics.memory_used_mb;
+        self.gpu_memory_total_mb = metrics.memory_total_mb;
+
+        // Mark as verified active if we can get metrics and utilization is > 0
+        self.gpu_verified_active = metrics
+            .utilization_percent
+            .map(|util| util > 0.0)
+            .unwrap_or(false);
+    }
+
+    /// Format GPU utilization as a string with one decimal place
+    pub fn gpu_utilization_formatted(&self) -> String {
+        self.gpu_utilization_percent
+            .map(|util| format!("{:.1}", util))
+            .unwrap_or_else(|| "N/A".to_string())
     }
 }
 

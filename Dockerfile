@@ -1,11 +1,14 @@
-FROM debian:bookworm-slim
+# Use NVIDIA CUDA runtime base so libcublasLt and other CUDA libs are available
+# when running with --gpus. Use debian:bookworm-slim for CPU-only builds.
+#FROM nvidia/cuda:12.6.0-runtime-ubuntu22.04
+FROM nvidia/cuda:13.1.1-cudnn-runtime-ubuntu24.04
 
 LABEL maintainer="xnorpx@outlook.com"
 LABEL description="Blue Onyx docker container"
 
 ENV TARGET_FOLDER=/models
 
-# Install dependencies
+# Install dependencies (openssl/ca-certificates for HTTPS, etc.)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends openssl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
@@ -19,7 +22,7 @@ WORKDIR /app
 RUN chown blueonyx:blueonyx /app
 
 # Copy application files and set ownership
-COPY --chown=blueonyx:blueonyx target/release/blue_onyx target/release/libonnxruntime.so  ./
+COPY --chown=blueonyx:blueonyx target/release/blue_onyx target/release/libonnxruntime.so target/release/libonnxruntime_providers_cuda.so target/release/libonnxruntime_providers_shared.so  ./
 
 # Copy model files and set ownership
 COPY --chown=blueonyx:blueonyx models/* ./

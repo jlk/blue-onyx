@@ -28,7 +28,7 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct DetectResult {
     pub predictions: SmallVec<[Prediction; 10]>,
@@ -74,6 +74,8 @@ pub struct Detector {
     object_detection_model: ObjectDetectionModel,
     input_width: usize,
     input_height: usize,
+    gpu_index: i32,
+    request_count: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -619,6 +621,7 @@ impl Detector {
             object_filter = Some(object_filter_vector);
         }
 
+        let gpu_index = detector_config.object_detection_onnx_config.gpu_index;
         let mut detector = Self {
             model_name,
             endpoint_provider,
@@ -636,16 +639,24 @@ impl Detector {
             object_detection_model: detector_config.object_detection_model,
             input_width: width,
             input_height: height,
+            gpu_index,
+            request_count: 0,
         };
 
         // Warmup
         info!("Warming up the detector");
         let detector_warmup_start_time = Instant::now();
-        detector.detect(Bytes::from(crate::DOG_BIKE_CAR_BYTES), None, None)?;
-        info!(
-            "Detector warmed up in: {:?}",
-            detector_warmup_start_time.elapsed()
-        );
+        let warmup_result = detector.detect(Bytes::from(crate::DOG_BIKE_CAR_BYTES), None, None)?;
+        let warmup_time = detector_warmup_start_time.elapsed();
+        info!("Detector warmed up in: {:?}", warmup_time);
+
+        // Verify GPU is actually being used if GPU was expected
+        if detector.device_type == DeviceType::GPU {
+            detector.verify_gpu_active(
+                &warmup_result,
+                detector_config.object_detection_onnx_config.gpu_index,
+            )?;
+        }
 
         Ok(detector)
     }
@@ -782,10 +793,64 @@ impl Detector {
 
         let pre_processing_time = processing_time_start.elapsed();
         debug!("Pre-process time: {:?}", pre_processing_time);
+
+        // Log GPU metrics before inference (if using GPU)
+        let gpu_metrics_before = if self.device_type == DeviceType::GPU {
+            Some(crate::system_info::get_gpu_metrics(self.gpu_index as usize))
+        } else {
+            info!("No GPU metrics before inference");
+            None
+        };
+
         let start_inference_time = std::time::Instant::now();
         let outputs: SessionOutputs = self.session.run(session_inputs)?;
         let inference_time = start_inference_time.elapsed();
         debug!("Inference time: {:?}", inference_time);
+
+        // Performance-based indicator: warn if inference time suggests CPU usage when GPU is expected
+        let inference_ms = inference_time.as_millis() as u64;
+        // Heuristic: if inference time > 100ms for typical models, might indicate CPU fallback
+        if inference_ms > 100 {
+            warn!(
+                inference_time_ms = inference_ms,
+                "Inference time is high ({} ms). This may indicate CPU fallback instead of GPU.",
+                inference_ms
+            );
+        }
+
+        // Log GPU metrics after inference (if using GPU)
+        if let Some(ref metrics_before) = gpu_metrics_before {
+            let gpu_metrics_after = crate::system_info::get_gpu_metrics(self.gpu_index as usize);
+
+            // Check memory usage change
+            if let (Some(mem_before), Some(mem_after)) = (
+                metrics_before.memory_used_mb,
+                gpu_metrics_after.memory_used_mb,
+            ) {
+                if mem_after > mem_before {
+                    debug!(
+                        memory_before_mb = mem_before,
+                        memory_after_mb = mem_after,
+                        "GPU memory usage increased during inference ({} MB -> {} MB)",
+                        mem_before,
+                        mem_after
+                    );
+                }
+            }
+
+            // Periodic detailed logging every 10 requests
+            self.request_count += 1;
+            if self.request_count % 10 == 0 {
+                info!(
+                    request_count = self.request_count,
+                    gpu_utilization = gpu_metrics_after.utilization_percent,
+                    gpu_memory_used_mb = gpu_metrics_after.memory_used_mb,
+                    gpu_memory_total_mb = gpu_metrics_after.memory_total_mb,
+                    gpu_temperature = gpu_metrics_after.temperature_celsius,
+                    "GPU metrics (every 10 requests)"
+                );
+            }
+        }
         let post_processing_time_start = Instant::now();
         let confidence_threshold = min_confidence.unwrap_or(self.confidence_threshold);
         let params = PostProcessParams {
@@ -889,6 +954,41 @@ impl Detector {
     pub fn get_input_size(&self) -> (usize, usize) {
         (self.input_width, self.input_height)
     }
+
+    /// Verify that GPU is actually being used during inference
+    /// JLK: I'm not really doing anything here to verify or not...
+    fn verify_gpu_active(
+        &self,
+        _warmup_result: &DetectResult,
+        gpu_index: i32,
+    ) -> anyhow::Result<()> {
+        if self.device_type != DeviceType::GPU {
+            return Ok(()); // Not expecting GPU, skip verification
+        }
+
+        let gpu_index = gpu_index as usize;
+
+        // Check GPU utilization during warmup
+        if let Some(utilization) = crate::system_info::gpu_utilization(gpu_index) {
+            info!(
+                gpu_index = gpu_index,
+                gpu_utilization = utilization,
+                "GPU utilization after warmup"
+            );
+        }
+
+        // Check GPU memory usage
+        if let Some((used_mb, total_mb)) = crate::system_info::gpu_memory_usage(gpu_index) {
+            info!(
+                gpu_index = gpu_index,
+                memory_used_mb = used_mb,
+                memory_total_mb = total_mb,
+                "GPU memory usage after warmup"
+            );
+        }
+
+        Ok(())
+    }
 }
 
 type InitializeOnnxResult = Result<
@@ -933,13 +1033,31 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
                 "DirectML available, attempting to use DirectML for inference"
             );
 
+            // Log GPU device information
+            if let Ok(gpu_names) = crate::system_info::gpu_info(false) {
+                if let Some(gpu_name) = gpu_names.get(onnx_config.gpu_index as usize) {
+                    info!(
+                        gpu_index = onnx_config.gpu_index,
+                        gpu_name = %gpu_name,
+                        "Using GPU device for DirectML inference"
+                    );
+                }
+            }
+
             // Try to initialize DirectML provider, but handle any errors
-            let provider = DirectMLExecutionProvider::default()
+            match DirectMLExecutionProvider::default()
                 .with_device_id(onnx_config.gpu_index)
-                .build();
-            providers.push(provider);
-            device_type = DeviceType::GPU;
-            info!("DirectML initialization successful");
+                .build()
+            {
+                provider => {
+                    providers.push(provider);
+                    device_type = DeviceType::GPU;
+                    info!(
+                        gpu_index = onnx_config.gpu_index,
+                        "DirectML provider initialization successful"
+                    );
+                }
+            }
             (1, 1) // For GPU we just hardcode to 1 thread
         } else {
             let num_intra_threads = onnx_config
@@ -971,13 +1089,49 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
                     "CUDA available, attempting to use CUDA for inference"
                 );
 
+                // Log GPU device information
+                if let Ok(gpu_names) = crate::system_info::gpu_info(false) {
+                    if let Some(gpu_name) = gpu_names.get(onnx_config.gpu_index as usize) {
+                        info!(
+                            gpu_index = onnx_config.gpu_index,
+                            gpu_name = %gpu_name,
+                            "Using GPU device for CUDA inference"
+                        );
+                        // Log GPU memory info if available
+                        // jlk: check if this is really gpu memory
+                        if let Some((used_mb, total_mb)) =
+                            crate::system_info::gpu_memory_usage(onnx_config.gpu_index as usize)
+                        {
+                            info!(
+                                gpu_index = onnx_config.gpu_index,
+                                memory_used_mb = used_mb,
+                                memory_total_mb = total_mb,
+                                "GPU memory information"
+                            );
+                        }
+                    } else {
+                        warn!(
+                            gpu_index = onnx_config.gpu_index,
+                            "GPU index {} not found in available GPUs", onnx_config.gpu_index
+                        );
+                    }
+                }
+
                 // Try to initialize CUDA provider, but handle any errors
-                let provider = CUDAExecutionProvider::default()
+                match CUDAExecutionProvider::default()
                     .with_device_id(onnx_config.gpu_index)
-                    .build();
-                providers.push(provider);
-                device_type = DeviceType::GPU;
-                info!("CUDA initialization successful");
+                    .build()
+                    .error_on_failure()
+                {
+                    provider => {
+                        providers.push(provider);
+                        device_type = DeviceType::GPU;
+                        info!(
+                            gpu_index = onnx_config.gpu_index,
+                            "CUDA provider initialization successful"
+                        );
+                    }
+                }
                 (1, 1) // For GPU we just hardcode to 1 thread
             } else {
                 let num_intra_threads = onnx_config
@@ -1018,14 +1172,63 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
         model_name, device_type,
     );
 
+    // Log execution provider configuration
+    if providers.is_empty() {
+        info!("No execution providers specified, ONNX Runtime will use default CPU provider");
+    } else {
+        info!(
+            provider_count = providers.len(),
+            "Configuring {} execution provider(s)",
+            providers.len()
+        );
+    }
+
+    // Warn if GPU was requested but no providers were added
+    if !onnx_config.force_cpu && device_type == DeviceType::CPU && providers.is_empty() {
+        warn!(
+            "GPU was requested (force_cpu=false) but no GPU providers were configured. Falling back to CPU."
+        );
+    }
+
     // Build the session with the appropriate execution providers
     // Note: When providers list is empty (which is the case when force_cpu=true),
     // ONNX Runtime will default to CPU execution provider
-    let session = Session::builder()?
-        .with_execution_providers(providers)?
+    let session = match Session::builder()?
+        .with_execution_providers(providers.clone())?
         .with_intra_threads(num_intra_threads)?
         .with_inter_threads(num_inter_threads)?
-        .commit_from_memory(model_bytes.as_slice())?;
+        .commit_from_memory(model_bytes.as_slice())
+    {
+        Ok(session) => {
+            info!(
+                device_type = %device_type,
+                "ONNX Runtime session created successfully"
+            );
+            session
+        }
+        Err(e) => {
+            // If GPU provider was configured but session creation failed, log detailed error
+            if device_type == DeviceType::GPU {
+                error!(
+                    error = %e,
+                    "Failed to create ONNX Runtime session with GPU provider. This may indicate: \
+                     GPU driver issues, insufficient GPU memory, or incompatible GPU hardware."
+                );
+                // Try to provide more context
+                #[cfg(not(windows))]
+                if let Some((used_mb, total_mb)) =
+                    crate::system_info::gpu_memory_usage(onnx_config.gpu_index as usize)
+                {
+                    warn!(
+                        gpu_memory_used_mb = used_mb,
+                        gpu_memory_total_mb = total_mb,
+                        "GPU memory status at session creation failure"
+                    );
+                }
+            }
+            return Err(e.into());
+        }
+    };
 
     // Query the input size from the model
     let (width, height) = query_image_input_size(&session)?;

@@ -36,6 +36,45 @@
         </div>
     </div>
 
+    <!-- GPU Metrics Section -->
+    {% if metrics.gpu_index.is_some() %}
+    <div class="stat-card">
+        <div class="icon">
+            <i class="fas fa-microchip"></i>
+        </div>
+        <div class="stat-content">
+            <h3>GPU Utilization</h3>
+            <p>{{ metrics.gpu_utilization_formatted() }}%</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="icon">
+            <i class="fas fa-memory"></i>
+        </div>
+        <div class="stat-content">
+            <h3>GPU Memory</h3>
+            {% if metrics.gpu_memory_used_mb.is_some() && metrics.gpu_memory_total_mb.is_some() %}
+            <p>{{ metrics.gpu_memory_used_mb.unwrap() }} MB / {{ metrics.gpu_memory_total_mb.unwrap() }} MB</p>
+            {% else %}
+            <p>N/A</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="icon">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stat-content">
+            <h3>GPU Verified Active</h3>
+            {% if metrics.gpu_verified_active %}
+            <p style="color: green;">Yes</p>
+            {% else %}
+            <p style="color: orange;">Unverified</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Request Statistics Section -->
     <div class="stat-card">
         <div class="icon">

@@ -117,15 +117,17 @@ pub fn cuda_available() -> bool {
     {
         return true;
     }
-    
+
     // Also check for common CUDA library paths
     let cuda_paths = [
         "/usr/local/cuda/lib64/libcudart.so",
         "/usr/lib/x86_64-linux-gnu/libcudart.so",
         "/opt/cuda/lib64/libcudart.so",
     ];
-    
-    cuda_paths.iter().any(|path| std::path::Path::new(path).exists())
+
+    cuda_paths
+        .iter()
+        .any(|path| std::path::Path::new(path).exists())
 }
 
 #[cfg(windows)]
@@ -311,11 +313,11 @@ pub fn update_service_log_level(new_log_level: LogLevel) -> anyhow::Result<()> {
 
 fn level_to_filter_string(log_level: LogLevel) -> String {
     match log_level {
-        LogLevel::Trace => "trace",
-        LogLevel::Debug => "debug",
-        LogLevel::Info => "info",
-        LogLevel::Warn => "warn",
-        LogLevel::Error => "error",
+        LogLevel::Trace => "trace,ort=debug",
+        LogLevel::Debug => "debug,ort=debug",
+        LogLevel::Info => "info,ort=debug",
+        LogLevel::Warn => "warn,ort=debug",
+        LogLevel::Error => "error,ort=debug",
     }
     .to_string()
 }
