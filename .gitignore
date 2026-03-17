@@ -15,6 +15,7 @@ Cargo.lock
 *.pdb
 
 onnx*
+models
 /target
 /book/book/
 *.code-workspace
