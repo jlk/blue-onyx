@@ -133,11 +133,10 @@ jobs:
       with:
         toolchain: stable
         components: clippy
-    - name: Download build artifacts
-      - uses: actions/download-artifact@v8
-        with:
-          name: blueonyx-build-ubuntu-latest-stable
-          path: target
+    - uses: actions/download-artifact@v8
+      with:
+        name: blueonyx-build-ubuntu-latest-stable
+        path: target
     - name: Check artifact
       run: ls -l target
     - name: Check clippy
@@ -159,11 +158,10 @@ jobs:
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
         with:
           toolchain: stable
-      - name: Download build artifacts
-        - uses: actions/download-artifact@v8
-          with:
-            name: blueonyx-build-ubuntu-latest-stable
-            path: target
+      - uses: actions/download-artifact@v8
+        with:
+          name: blueonyx-build-ubuntu-latest-stable
+          path: target
       - name: Check artifact
         run: ls -l target
       - name: Check documentation
