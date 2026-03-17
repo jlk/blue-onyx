@@ -31,82 +31,102 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # build-test-cpu:
-  #   name: build-test-cpu
-  #   env:
-  #     RUST_BACKTRACE: 1
-  #     RUSTFLAGS: -C target-cpu=native -D warnings
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #       - build: win beta
-  #         os: windows-latest
-  #         rust: beta
-  #       - build: win nightly
-  #         os: windows-latest
-  #         rust: nightly
-  #       - build: win
-  #         os: windows-latest
-  #         rust: stable
-  #       - build: linux beta
-  #         os: ubuntu-latest
-  #         rust: beta
-  #       - build: linux nightly
-  #         os: ubuntu-latest
-  #         rust: nightly
-  #       - build: linux
-  #         os: ubuntu-latest
-  #         rust: stable
+  build-test-cpu:
+    name: build-test-cpu
+    env:
+      RUST_BACKTRACE: 1
+      RUSTFLAGS: -C target-cpu=native -D warnings
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - build: win beta
+          os: windows-latest
+          rust: beta
+        - build: win nightly
+          os: windows-latest
+          rust: nightly
+        - build: win
+          os: windows-latest
+          rust: stable
+        - build: linux beta
+          os: ubuntu-latest
+          rust: beta
+        - build: linux nightly
+          os: ubuntu-latest
+          rust: nightly
+        - build: linux
+          os: ubuntu-latest
+          rust: stable
 
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v4
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-  #   - name: Install Rust
-  #     uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
-  #     with:
-  #       toolchain: ${{ matrix.rust }}
+    - name: Install nvidia dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb 
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update 
+        sudo apt-get install -y cuda-toolkit-13-2 pkgconf libssl-dev cudnn9-cuda-13
 
-  #   - name: Set up Python
-  #     uses: actions/setup-python@v5
-  #     with:
-  #       python-version: '3.12'
-  #   - name: Install dependencies
-  #     run: python -m pip install --upgrade pip setuptools wheel
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
+      with:
+        toolchain: ${{ matrix.rust }}
 
-  #   - name: Install dependencies
-  #     run: python -m pip install flatbuffers numpy mypy pytest setuptools wheel onnx protobuf sympy psutil onnxscript
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: python -m pip install --upgrade pip setuptools wheel
 
-  #   - name: Build release blue-onyx
-  #     run: cargo build --release
+    - name: Install dependencies
+      run: python -m pip install flatbuffers numpy mypy pytest setuptools wheel onnx protobuf sympy psutil onnxscript
 
-  # rustfmt:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v4
-  #   - name: Install Rust
-  #     uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
-  #     with:
-  #       toolchain: stable
-  #       components: rustfmt
-  #   - name: Check formatting
-  #     run: cargo fmt --all --check
+    - name: Build release blue-onyx
+      run: cargo build --release
 
-  # clippy:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v4
-  #   - name: Install Rust
-  #     uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
-  #     with:
-  #       toolchain: stable
-  #       components: clippy
-  #   - name: Check clippy
-  #     run: cargo clippy --all-targets -- -D warnings
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install nvidia dependencies
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb 
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update 
+        sudo apt-get install -y cuda-toolkit-13-2 pkgconf libssl-dev cudnn9-cuda-13
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
+      with:
+        toolchain: stable
+        components: rustfmt
+    - name: Check formatting
+      run: cargo fmt --all --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install nvidia dependencies
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb 
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update 
+        sudo apt-get install -y cuda-toolkit-13-2 pkgconf libssl-dev cudnn9-cuda-13
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
+      with:
+        toolchain: stable
+        components: clippy
+    - name: Check clippy
+      run: cargo clippy --all-targets -- -D warnings
 
   docs:
     runs-on: ubuntu-latest
@@ -128,100 +148,100 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --no-deps --document-private-items --workspace
 
-  # installer:
-  #   name: windows-installer
-  #   runs-on: windows-latest
-  #   # Always run the installer job (build installer on all runs)
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v4
+  installer:
+    name: windows-installer
+    runs-on: windows-latest
+    # Always run the installer job (build installer on all runs)
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-  #   - name: Get short commit hash
-  #     shell: bash
-  #     run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+    - name: Get short commit hash
+      shell: bash
+      run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-  #   - name: Install Rust
-  #     uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
-  #     with:
-  #       toolchain: stable
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
+      with:
+        toolchain: stable
 
-  #   - name: Set up Python
-  #     uses: actions/setup-python@v5
-  #     with:
-  #       python-version: '3.12'
-  #   - name: Install dependencies
-  #     run: python -m pip install --upgrade pip setuptools wheel
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: python -m pip install --upgrade pip setuptools wheel
 
-  #   - name: Install dependencies
-  #     run: python -m pip install flatbuffers numpy mypy pytest setuptools wheel onnx protobuf sympy psutil onnxscript
+    - name: Install dependencies
+      run: python -m pip install flatbuffers numpy mypy pytest setuptools wheel onnx protobuf sympy psutil onnxscript
 
-  #   - name: Build release
-  #     run: cargo build --release
+    - name: Build release
+      run: cargo build --release
 
-  #   - name: Install cargo-packager and NSIS
-  #     shell: bash
-  #     run: |
-  #       cargo install cargo-packager
-  #       # Install NSIS
-  #       choco install nsis -y
-  #       # Add NSIS to PATH for current session
-  #       echo "C:/Program Files (x86)/NSIS" >> $GITHUB_PATH
+    - name: Install cargo-packager and NSIS
+      shell: bash
+      run: |
+        cargo install cargo-packager
+        # Install NSIS
+        choco install nsis -y
+        # Add NSIS to PATH for current session
+        echo "C:/Program Files (x86)/NSIS" >> $GITHUB_PATH
 
-  #   - name: Build Windows installer
-  #     shell: bash
-  #     run: |
-  #       # Build the NSIS installer
-  #       cargo packager --release --formats nsis
-  #       # Get the version from Cargo.toml
-  #       VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+    - name: Build Windows installer
+      shell: bash
+      run: |
+        # Build the NSIS installer
+        cargo packager --release --formats nsis
+        # Get the version from Cargo.toml
+        VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
         
-  #       # Sanitize branch name by replacing / with - and other problematic characters
-  #       CLEAN_BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/[\/:]/-/g' | sed 's/[^a-zA-Z0-9._-]/-/g')
+        # Sanitize branch name by replacing / with - and other problematic characters
+        CLEAN_BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/[\/:]/-/g' | sed 's/[^a-zA-Z0-9._-]/-/g')
         
-  #       # Determine naming based on branch and trigger type
-  #       if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-  #         # Main branch: normal naming
-  #         INSTALLER_NAME="blue_onyx-${VERSION}-${SHORT_SHA}-installer.exe"
-  #       elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-  #         # Manual test: add -test- prefix and clean branch name
-  #         INSTALLER_NAME="blue_onyx-${VERSION}-test-${CLEAN_BRANCH_NAME}-${SHORT_SHA}-installer.exe"
-  #       else
-  #         # Feature branch: add -dev- prefix and clean branch name  
-  #         INSTALLER_NAME="blue_onyx-${VERSION}-dev-${CLEAN_BRANCH_NAME}-${SHORT_SHA}-installer.exe"
-  #       fi
+        # Determine naming based on branch and trigger type
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          # Main branch: normal naming
+          INSTALLER_NAME="blue_onyx-${VERSION}-${SHORT_SHA}-installer.exe"
+        elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Manual test: add -test- prefix and clean branch name
+          INSTALLER_NAME="blue_onyx-${VERSION}-test-${CLEAN_BRANCH_NAME}-${SHORT_SHA}-installer.exe"
+        else
+          # Feature branch: add -dev- prefix and clean branch name  
+          INSTALLER_NAME="blue_onyx-${VERSION}-dev-${CLEAN_BRANCH_NAME}-${SHORT_SHA}-installer.exe"
+        fi
         
-  #       # Rename the installer
-  #       mv target/release/blue_onyx_*_x64-setup.exe "${INSTALLER_NAME}"
-  #       echo "INSTALLER_NAME=${INSTALLER_NAME}" >> $GITHUB_ENV
+        # Rename the installer
+        mv target/release/blue_onyx_*_x64-setup.exe "${INSTALLER_NAME}"
+        echo "INSTALLER_NAME=${INSTALLER_NAME}" >> $GITHUB_ENV
 
-  #   - name: Upload installer as artifact
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: blue-onyx-installer-${{ env.SHORT_SHA }}
-  #       path: blue_onyx-*-installer.exe
-  #       retention-days: 30
+    - name: Upload installer as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: blue-onyx-installer-${{ env.SHORT_SHA }}
+        path: blue_onyx-*-installer.exe
+        retention-days: 30
 
-  #   - name: Create pre-release with installer
-  #     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_installer == 'true')
-  #     env:
-  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     shell: bash
-  #     run: |
-  #       # Get version and create pre-release tag
-  #       VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-  #       TAG_NAME="v${VERSION}-${SHORT_SHA}"
+    - name: Create pre-release with installer
+      if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_installer == 'true')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        # Get version and create pre-release tag
+        VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+        TAG_NAME="v${VERSION}-${SHORT_SHA}"
         
-  #       # Check if release with this commit already exists
-  #       if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
-  #         echo "Release ${TAG_NAME} already exists for commit ${SHORT_SHA}, skipping..."
-  #         exit 0
-  #       fi
+        # Check if release with this commit already exists
+        if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+          echo "Release ${TAG_NAME} already exists for commit ${SHORT_SHA}, skipping..."
+          exit 0
+        fi
         
-  #       # Create or update pre-release
-  #       gh release create "${TAG_NAME}" \
-  #         --title "Development Build ${VERSION}-${SHORT_SHA}" \
-  #         --notes "Automated development build from commit ${SHORT_SHA}" \
-  #         --prerelease \
-  #         --target ${{ github.sha }} \
-  #         "${INSTALLER_NAME}" || \
-  #       gh release upload "${TAG_NAME}" "${INSTALLER_NAME}" --clobber
+        # Create or update pre-release
+        gh release create "${TAG_NAME}" \
+          --title "Development Build ${VERSION}-${SHORT_SHA}" \
+          --notes "Automated development build from commit ${SHORT_SHA}" \
+          --prerelease \
+          --target ${{ github.sha }} \
+          "${INSTALLER_NAME}" || \
+        gh release upload "${TAG_NAME}" "${INSTALLER_NAME}" --clobber
