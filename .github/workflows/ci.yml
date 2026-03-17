@@ -33,6 +33,7 @@ env:
 jobs:
   build-test-cpu:
     name: build-test-cpu
+    needs: rustfmt
     env:
       RUST_BACKTRACE: 1
       RUSTFLAGS: -C target-cpu=native -D warnings
@@ -64,7 +65,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install nvidia dependencies
+    - name: Install CUDA dependencies
       if: matrix.os == 'ubuntu-latest'
       run: |
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb 
@@ -90,6 +91,12 @@ jobs:
     - name: Build release blue-onyx
       run: cargo build --release
 
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: blueonyx-build-${{ matrix.os }}-${{ matrix.rust }}
+        path: target/
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -111,6 +118,7 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
+    needs: build-test-cpu
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -125,11 +133,19 @@ jobs:
       with:
         toolchain: stable
         components: clippy
+    - name: Download build artifacts
+      - uses: actions/download-artifact@v8
+        with:
+          name: blueonyx-build-ubuntu-latest-stable
+          path: target
+    - name: Check artifact
+      run: ls -l target
     - name: Check clippy
       run: cargo clippy --all-targets -- -D warnings
 
   docs:
     runs-on: ubuntu-latest
+    needs: build-test-cpu
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -143,6 +159,13 @@ jobs:
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
         with:
           toolchain: stable
+      - name: Download build artifacts
+        - uses: actions/download-artifact@v8
+          with:
+            name: blueonyx-build-ubuntu-latest-stable
+            path: target
+      - name: Check artifact
+        run: ls -l target
       - name: Check documentation
         env:
           RUSTDOCFLAGS: -D warnings
