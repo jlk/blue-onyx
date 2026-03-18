@@ -895,7 +895,7 @@ impl Metrics {
         let (provider_name, gpu_idx) = match &detector_info.execution_provider {
             ExecutionProvider::CPU => ("CPU".to_string(), None),
             #[cfg(windows)]
-            ExecutionProvider::DirectML(index) => format!("DirectML(GPU {index})"),
+            ExecutionProvider::DirectML(index) => (format!("DirectML(GPU {index})"), Some(*index as i32)),
             #[cfg(not(windows))]
             ExecutionProvider::CUDA(index) => (format!("CUDA(GPU {index})"), Some(*index as i32)),
         };
