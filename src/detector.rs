@@ -826,21 +826,20 @@ impl Detector {
             if let (Some(mem_before), Some(mem_after)) = (
                 metrics_before.memory_used_mb,
                 gpu_metrics_after.memory_used_mb,
-            ) {
-                if mem_after > mem_before {
-                    debug!(
-                        memory_before_mb = mem_before,
-                        memory_after_mb = mem_after,
-                        "GPU memory usage increased during inference ({} MB -> {} MB)",
-                        mem_before,
-                        mem_after
-                    );
-                }
+            ) && mem_after > mem_before
+            {
+                debug!(
+                    memory_before_mb = mem_before,
+                    memory_after_mb = mem_after,
+                    "GPU memory usage increased during inference ({} MB -> {} MB)",
+                    mem_before,
+                    mem_after
+                );
             }
 
             // Periodic detailed logging every 10 requests
             self.request_count += 1;
-            if self.request_count % 10 == 0 {
+            if self.request_count.is_multiple_of(10) {
                 info!(
                     request_count = self.request_count,
                     gpu_utilization = gpu_metrics_after.utilization_percent,
@@ -1118,19 +1117,17 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
                 }
 
                 // Try to initialize CUDA provider, but handle any errors
-                match CUDAExecutionProvider::default()
+                let provider = CUDAExecutionProvider::default()
                     .with_device_id(onnx_config.gpu_index)
                     .build()
-                    .error_on_failure()
+                    .error_on_failure();
                 {
-                    provider => {
-                        providers.push(provider);
-                        device_type = DeviceType::GPU;
-                        info!(
-                            gpu_index = onnx_config.gpu_index,
-                            "CUDA provider initialization successful"
-                        );
-                    }
+                    providers.push(provider);
+                    device_type = DeviceType::GPU;
+                    info!(
+                        gpu_index = onnx_config.gpu_index,
+                        "CUDA provider initialization successful"
+                    );
                 }
                 (1, 1) // For GPU we just hardcode to 1 thread
             } else {

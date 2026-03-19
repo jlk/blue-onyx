@@ -288,10 +288,10 @@ async fn v1_vision_detection(
 
                 // Periodically update GPU metrics (every 10 requests)
                 // jlk: every request
-                if metrics.number_of_requests % 1 == 0 {
-                    if let Some(gpu_idx) = metrics.gpu_index {
-                        metrics.update_gpu_metrics(gpu_idx as usize);
-                    }
+                if metrics.number_of_requests % 5 == 0
+                    && let Some(gpu_idx) = metrics.gpu_index
+                {
+                    metrics.update_gpu_metrics(gpu_idx as usize);
                 }
             }
 
