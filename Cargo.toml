@@ -71,7 +71,6 @@ zune-jpeg = { version = "0", default-features = false, features = ["std"] }
 ort = { version = "2.0.0-rc.10", default-features = false, features = [
     "ndarray",
     "load-dynamic",
-    "cuda",
 ] }
 
 [target.'cfg(windows)'.dependencies]
@@ -100,6 +99,11 @@ reqwest = { version = "0", default-features = false, features = [
     "blocking",
     "default-tls",
 ] }
+
+[features]
+# CPU-only is the default; enable CUDA acceleration with `--features cuda`.
+default = []
+cuda = ["ort/cuda"]
 
 [profile.release]
 opt-level = 3

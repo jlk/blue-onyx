@@ -46,6 +46,12 @@ Verify it is working by going to http://127.0.0.1:32168/
 
 ## Docker container on Linux
 
+The default published image provides CPU-only inference. For systems witn CUDA-compatable (NVIDIA) graphics cards, build from `Dockerfile.cuda` after `cargo build --release --features cuda`:
+
+```bash
+docker build -f Dockerfile.cuda -t blue-onyx:cuda .
+```
+
 ```bash
 docker pull ghcr.io/xnorpx/blue_onyx:latest
 docker run -d -p 32168:32168 ghcr.io/xnorpx/blue_onyx:latest
@@ -132,9 +138,13 @@ Blue Onyx supports NVIDIA GPU acceleration on Linux using CUDA. To use GPU accel
    nvidia-smi
    ```
 
-2. **Build with CUDA support**: The project automatically includes CUDA support when building on Linux. Make sure you have the CUDA libraries available in your system.
+2. **Build with CUDA support (optional)**: CUDA acceleration is enabled only when the binary is built with the cargo feature. For example:
+   ```bash
+   cargo build --release --features cuda
+   ```
+   If you build without that feature (`cargo build --release`), Blue Onyx will be CPU-only.
 
-3. **Run Blue Onyx**: The service will automatically detect and use CUDA if available:
+3. **Run Blue Onyx**: If the binary was built with `--features cuda` and CUDA is available, the service will use the GPU. Otherwise it will fall back to CPU:
    ```bash
    blue_onyx
    ```
@@ -153,7 +163,7 @@ Blue Onyx supports NVIDIA GPU acceleration on Linux using CUDA. To use GPU accel
    blue_onyx --gpu_index 1
    ```
 
-The service will log whether CUDA is available and which GPU is being used during startup.
+The service will log whether CUDA support is enabled at build time and which GPU is being used during startup.
 
 ## Performance Testing
 

@@ -1,4 +1,4 @@
-#[cfg(not(windows))]
+#[cfg(all(not(windows), feature = "cuda"))]
 use crate::cuda_available;
 #[cfg(windows)]
 use crate::direct_ml_available;
@@ -13,7 +13,7 @@ use crate::{
 use anyhow::{anyhow, bail};
 use bytes::Bytes;
 use ndarray::{Array, ArrayView, Axis, s};
-#[cfg(not(windows))]
+#[cfg(all(not(windows), feature = "cuda"))]
 use ort::execution_providers::CUDAExecutionProvider;
 #[cfg(windows)]
 use ort::execution_providers::DirectMLExecutionProvider;
@@ -1080,7 +1080,7 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
             (num_intra_threads, num_inter_threads)
         }
 
-        #[cfg(not(windows))]
+        #[cfg(all(not(windows), feature = "cuda"))]
         {
             if cuda_available() {
                 info!(
@@ -1145,6 +1145,24 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
                 );
                 (num_intra_threads, num_inter_threads)
             }
+        }
+
+        #[cfg(all(not(windows), not(feature = "cuda")))]
+        {
+            let num_intra_threads = onnx_config
+                .intra_threads
+                .min(num_cpus::get_physical() - 1)
+                .min(16);
+            let num_inter_threads = onnx_config
+                .inter_threads
+                .min(num_cpus::get_physical() - 1)
+                .min(16);
+
+            warn!(
+                "cargo feature `cuda` disabled, using CPU for inference with {} intra and {} inter threads",
+                num_intra_threads, num_inter_threads
+            );
+            (num_intra_threads, num_inter_threads)
         }
     };
 
@@ -1238,7 +1256,7 @@ fn initialize_onnx(onnx_config: &OnnxConfig) -> InitializeOnnxResult {
     let endpoint_provider = match device_type {
         #[cfg(windows)]
         DeviceType::GPU => EndpointProvider::DirectML,
-        #[cfg(not(windows))]
+        #[cfg(all(not(windows), feature = "cuda"))]
         DeviceType::GPU => EndpointProvider::CUDA,
         _ => EndpointProvider::CPU,
     };
@@ -1257,7 +1275,7 @@ pub enum EndpointProvider {
     CPU,
     #[cfg(windows)]
     DirectML,
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), feature = "cuda"))]
     CUDA,
 }
 
@@ -1267,7 +1285,7 @@ impl std::fmt::Display for EndpointProvider {
             EndpointProvider::CPU => write!(f, "CPU"),
             #[cfg(windows)]
             EndpointProvider::DirectML => write!(f, "DirectML"),
-            #[cfg(not(windows))]
+            #[cfg(all(not(windows), feature = "cuda"))]
             EndpointProvider::CUDA => write!(f, "CUDA"),
         }
     }
@@ -1294,6 +1312,6 @@ pub enum ExecutionProvider {
     CPU,
     #[cfg(windows)]
     DirectML(usize), // GPU index
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), feature = "cuda"))]
     CUDA(usize), // GPU index
 }

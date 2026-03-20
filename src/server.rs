@@ -899,7 +899,7 @@ impl Metrics {
                 (format!("DirectML(GPU {index})"), Some(*index as i32))
             }
 
-            #[cfg(not(windows))]
+            #[cfg(all(not(windows), feature = "cuda"))]
             ExecutionProvider::CUDA(index) => (format!("CUDA(GPU {index})"), Some(*index as i32)),
         };
         self.execution_provider_name = provider_name;

@@ -171,6 +171,8 @@ docker run -p 32168:32168 \
 
 GPU support in Docker requires additional setup:
 
+If you build your own images from source, make sure you build the `blue_onyx` binary with the `cuda` cargo feature (`cargo build --release --features cuda`) and then build docker image with `Dockerfile.cuda`. For CPU-only images, use the standard `Dockerfile`.
+
 ```bash
 # Install nvidia-docker2 (NVIDIA GPUs only)
 curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -

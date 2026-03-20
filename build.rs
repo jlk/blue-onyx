@@ -249,6 +249,9 @@ fn build_onnx(target_dir: &str) {
         panic!("ONNX Runtime build script missing");
     }
 
+    // cargo exposes enabled features to build scripts via `CARGO_FEATURE_*` env vars.
+    let cuda_feature_enabled = env::var_os("CARGO_FEATURE_CUDA").is_some();
+
     let mut build_commands = vec![
         "--config".to_string(),
         get_build_config().to_string(),
@@ -275,12 +278,16 @@ fn build_onnx(target_dir: &str) {
         // Enable Core ML on macOS
         build_commands.push("--use_coreml".to_string());
     } else if cfg!(target_os = "linux") {
-        // Enable CUDA on Linux
-        build_commands.extend([
-            "--use_cuda".to_string(),
-            "--cuda_home=/usr/local/cuda".to_string(),
-            "--cudnn_home=/usr/local/cuda".to_string(),
-        ]);
+        if cuda_feature_enabled {
+            // Enable CUDA on Linux (requires CUDA toolkit + headers present).
+            build_commands.extend([
+                "--use_cuda".to_string(),
+                "--cuda_home=/usr/local/cuda".to_string(),
+                "--cudnn_home=/usr/local/cuda".to_string(),
+            ]);
+        } else {
+            build_warning!("Building ONNX Runtime without CUDA (cargo feature `cuda` disabled)");
+        }
     }
 
     build_warning!("Running ONNX Runtime build script");

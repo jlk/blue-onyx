@@ -105,7 +105,7 @@ pub fn direct_ml_available() -> bool {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), feature = "cuda"))]
 pub fn cuda_available() -> bool {
     // Check if nvidia-smi is available (indicates NVIDIA drivers are installed)
     use std::process::Command;
@@ -130,6 +130,11 @@ pub fn cuda_available() -> bool {
         .any(|path| std::path::Path::new(path).exists())
 }
 
+#[cfg(all(not(windows), not(feature = "cuda")))]
+pub fn cuda_available() -> bool {
+    false
+}
+
 #[cfg(windows)]
 pub fn cuda_available() -> bool {
     false // CUDA on Windows would use DirectML instead
@@ -144,11 +149,16 @@ pub fn log_available_gpus() {
         info!("DirectML is not available - only CPU inference will be supported");
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), feature = "cuda"))]
     if cuda_available() {
         info!("CUDA is available for GPU inference");
     } else {
         info!("CUDA is not available - only CPU inference will be supported");
+    }
+
+    #[cfg(all(not(windows), not(feature = "cuda")))]
+    {
+        info!("CUDA feature disabled at build time - only CPU inference will be supported");
     }
 
     // Log available GPU devices
