@@ -48,6 +48,11 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Cache cargo registry and target
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: linux-cpu
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -91,6 +96,11 @@ jobs:
       uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
       with:
         toolchain: stable
+
+    - name: Cache cargo registry and target
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: linux-cuda
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -141,6 +151,11 @@ jobs:
       uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
       with:
         toolchain: ${{ matrix.rust }}
+
+    - name: Cache cargo registry and target
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.os }}-${{ matrix.rust }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -226,6 +241,11 @@ jobs:
       uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # master
       with:
         toolchain: stable
+
+    - name: Cache cargo registry and target
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: windows-installer
 
     - name: Set up Python
       uses: actions/setup-python@v5
